@@ -1,0 +1,8 @@
+#!/bin/sh
+set -e
+
+echo "
+let g:proj_path = \"`pwd`/\"
+" > ./proj.vim
+
+echo "vim init successfuly, proj.vim created!"
