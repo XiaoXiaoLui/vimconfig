@@ -1,11 +1,13 @@
 set t_Co=256
 set number
+highlight LineNr ctermfg=142
 set nowrapscan
 set whichwrap=
 set cursorline
 set tags=tags;
 set sessionoptions=blank,curdir,buffers,folds,help,options,tabpages,winsize
 hi StatusLine ctermbg=darkgray ctermfg=black
+set diffopt=filler,vertical
 
 function! GetHelp()
     let curword = expand('<cword>')
@@ -164,38 +166,33 @@ function! ToFile(cmd, file)
     redir END
 endfunction
 
-nnoremap <Leader>pm :call ToFile("verbose map", "~/vimmap")<CR>:e ~/vimmap<CR>
-nnoremap <Leader>pa :call ToFile("verbose autocmd", "~/vimautocmd")<CR>:e ~/vimautocmd<CR>
-nnoremap <Leader>pj :call ToFile("verbose jumps", "~/vimjump")<CR>:e ~/vimjump<CR>
+nnoremap <Leader>pm :call ToFile("verbose map", "~/.vimtmp/vimmap")<CR>:e ~/.vimtmp/vimmap<CR>
+nnoremap <Leader>pa :call ToFile("verbose autocmd", "~/.vimtmp/vimautocmd")<CR>:e ~/.vimtmp/vimautocmd<CR>
+nnoremap <Leader>pj :call ToFile("verbose jumps", "~/.vimtmp/vimjump")<CR>:e ~/.vimtmp/vimjump<CR>
 nnoremap <Leader>d "_d
 vnoremap <Leader>d "_d
 
-
+let g:cpp_source_ext = ['cpp', 'c', 'cc']
+let g:cpp_header_ext = ['h', 'hpp', 'hh']
 function! GetSwitchFileCommand()
     let fileexp = expand("%:e")
     let fileroot = expand("%:r")
-    if fileexp == 'cpp' || fileexp == 'c'
-        let switchfile1 = fileroot.'.h' 
-        let switchfile2 = fileroot.'.hpp' 
-    elseif fileexp == 'h' || fileexp == 'hpp'
-        let switchfile1 = fileroot.'.c'
-        let switchfile2 = fileroot.'.cpp'
+    if index(g:cpp_source_ext, fileexp) >= 0
+        let switchlist = g:cpp_header_ext
+    elseif index(g:cpp_header_ext, fileexp) >= 0
+        let switchlist = g:cpp_source_ext
     else
         return ""
     endif
 
-
-    try
-        execute 'find '.switchfile1
-        return 
-    catch
-    endtry
-
-    try
-        execute 'find '.switchfile2
-        return
-    catch
-    endtry
+    for ext in switchlist
+        let filename = fileroot.'.'.ext
+        try
+            execute 'find '.filename
+            return
+        catch
+        endtry
+    endfor
     
 endfunction
 
@@ -226,13 +223,17 @@ function! ViewFileInPreviewWindow()
     endif
 
     wincmd p
-    execute "find ".filepath
-    execute "silent! normal zR"
+
+    if idx != -1
+        execute 'edit +'.linenum.' '.g:proj_path.filepath
+    else
+        execute 'find '.filepath
+    endif
 
     " some vim has no effect with this jump statement occassionally 
     "execute ''.linenum
     
-    execute 'normal '.linenum.'gg'
+    "execute 'normal '.linenum.'gg'
     execute 'normal zz'
     wincmd p
 endfunction
@@ -254,13 +255,14 @@ function! GoFileInPreviewWindow()
     endif
 
     wincmd p
-    execute "find ".filepath
-    execute "silent! normal zR"
+    if idx != -1
+        execute 'edit +'.linenum.' '.g:proj_path.filepath
+    else
+        execute 'find '.filepath
+    endif
 
     " some vim has no effect with this jump statement occassionally 
     "execute ''.linenum
-    
-    execute 'normal '.linenum.'gg'
     execute 'normal zz'
 endfunction
 
@@ -280,13 +282,14 @@ function! GoFile()
         execute 'let linenum = matstr['.idx.':]'
     endif
 
-    execute "find ".filepath
-    execute "silent! normal zR"
+    if idx != -1
+        execute 'edit +'.linenum.' '.g:proj_path.filepath
+    else
+        execute 'find '.filepath
+    endif
 
     " some vim has no effect with this jump statement occassionally 
     "execute ''.linenum
-    
-    execute 'normal '.linenum.'gg'
     execute 'normal zz'
 endfunction
 
@@ -296,7 +299,8 @@ nnoremap gf :call GoFile()<CR>
 
 " grep map
 let g:grepprog = 'grep'
-let g:grepop = '-nrIw'
+let g:grepop_default = '-nrIw'
+let g:grepop = g:grepop_default
 
 function! MyGrep(arg)
     let grcmd = '!grep '.g:grepop.' --exclude-dir=".svn" --exclude-dir=".git" --exclude=tags '
@@ -317,10 +321,10 @@ function! MyGrep(arg)
     endif
     
     if g:grepprog == 'grep'
-        let g:grepcmd = grcmd.pat.path.' >~/.grepres 2>&1' 
+        let g:grepcmd = grcmd.pat.path.' >~/.vimtmp/grepres 2>&1' 
         silent! execute g:grepcmd
     elseif g:grepprog == 'git'
-        let g:grepcmd = '!cd '.path.' && git grep -nIw '.pat.' >~/.grepres 2>&1'
+        let g:grepcmd = '!cd '.path.' && git grep -nIw '.pat.' >~/.vimtmp/grepres 2>&1'
         silent! execute g:grepcmd 
     else 
         echo "unknown grep program"
@@ -330,10 +334,11 @@ function! MyGrep(arg)
     redraw!
     call buftabline#update(0)
 
-    edit! ~/.grepres
+    edit! ~/.vimtmp/grepres
 
     if exists('g:proj_path')
         execute '%s+'.g:proj_path.'++'
+        w
     endif
     let @/ = '\<'.arglist[0].'\>'
 
@@ -350,6 +355,180 @@ endfunction
 
 nnoremap <F3> :call LookupRef()<CR>
 nnoremap <Leader><Leader> :b#<CR>
+
+
+let g:stat_file_ext = ['cpp', 'cc', 'c', 'h', 'hpp']
+function! Statistics()
+    if !g:save_session
+        echo 'Statistics() must be used in a project where viminit has been run!'
+        return
+    endif
+
+    let filetypecmd = ''
+    for ext in g:stat_file_ext
+        let filetypecmd = filetypecmd.'-name "*.'.ext.'" '
+        if index(g:stat_file_ext, ext) == len(g:stat_file_ext) - 1
+            break
+        endif
+
+        let filetypecmd = filetypecmd.'-o '
+    endfor
+
+    let cmd = '!find '.g:proj_path. ' -type f '.filetypecmd.' | xargs wc -l | sort -r > ~/.vimtmp/tmp 2>&1'
+    "let cmd = '!find '.g:proj_path. ' -type f '.filetypecmd.' | xargs wc -l   > ~/.vimtmp/tmp 2>&1'
+    "echo cmd
+    "let nouse = getchar()
+    silent! execute cmd
+    redraw!
+    call buftabline#update(0)
+    edit! ~/.vimtmp/tmp
+    execute '%s+'.g:proj_path.'++'
+    w
+
+    let maxlinenr = line('$')
+    let startline = maxlinenr < 50 ? maxlinenr : 50
+    call cursor(startline, 1)
+    let findlinenr = search('^\s*[0-9]\+ total$', 'b')
+    "echo findlinenr
+
+    let linecnt = 0
+    let nr = 0
+    while nr <=  findlinenr
+        let line = getline(nr)
+        let curcnt = matchstr(line, '[0-9]\+')
+        let linecnt += str2nr(curcnt)
+        
+        let nr += 1
+    endwhile
+
+
+    " count number for files of each type
+    let nr = findlinenr + 1
+    let dict = {}
+    let dictlines = {}
+    while nr <= line('$')
+        let line = getline(nr)
+        let filetype = matchstr(line, '\.[a-zA-Z]\{1,3}$')
+        let curcnt = matchstr(line, '[0-9]\+')
+        "echo filetype
+        "call getchar()
+        if !has_key(dict, filetype)
+            let dict[filetype] = 0
+            let dictlines[filetype] = 0
+        endif
+        let dict[filetype] += 1
+        let dictlines[filetype] += str2nr(curcnt)
+
+        let nr += 1
+    endwhile
+
+    "echo linecnt
+    execute (findlinenr + 1).',$yank'
+
+    edit! ~/.vimtmp/report
+    execute 'normal gg,dG'
+    let headmsg = printf("Total files: %d\nTotal lines:%d\n", maxlinenr - findlinenr, linecnt)
+
+    for [key, value] in items(dict)
+        let headmsg = headmsg.printf("%-10s%-6d files, %-8d lines\n", key.':', value, dictlines[key])
+    endfor
+    let headmsg = headmsg.printf("File lists:\n")
+    "echo headmsg
+    0put=headmsg
+
+    execute 'normal G' 
+    execute 'normal p'
+    execute '%s/^  //ge'
+    execute 'normal gg'
+    bd ~/.vimtmp/tmp
+    w
+    
+    execute 'normal \<CR>'
+    redraw!
+
+endfunction
+
+command! -nargs=* Stat call Statistics()
+nnoremap <F12> :call  Statistics()<CR>
+
+
+
+
+let g:project_file_ext = ['h', 'hpp', 'c', 'cpp', 'cc']
+function! RenameSymbol(...)
+    if !g:save_session
+        echo 'RenameSymbol() must be used in a project where viminit has been run!'
+        return
+    endif
+    
+    if a:0 != 2 && a:0 != 3
+        echoerr 'arguement number mismatch: a:0='.a:0
+        return
+    endif
+
+    let org = a:1
+    let rep = a:2
+    let flag = 'gc' 
+    if exists('a:3')
+        let flag = 'ge'
+    endif
+    let g:grepop = '-nrwIl'
+    call MyGrep(org)
+    let g:grepop = g:grepop_default
+
+    let linenr = 1
+    let filelist = []
+    while linenr <= line('$')
+        let line = getline(linenr)
+        if index(g:project_file_ext, fnamemodify(line, ':e')) == -1
+            let linenr += 1
+            continue
+        endif
+        
+        call add(filelist, line)
+        let linenr += 1
+       
+    endwhile
+
+
+    let need_ask = exists('a:3') ? 0 : 1
+    for filepath in filelist
+        execute 'edit '.g:proj_path.filepath
+        execute '%s/'.org.'/'.rep.'/'.flag
+
+        if index(filelist, filepath) == len(filelist) - 1
+            break
+        endif
+
+        let go_next_file = 1
+        let exit_loop = 0
+        while need_ask && !exit_loop
+            let exit_loop = 1
+
+            echo 'continue(y/n/a)?'
+            let cmd = getchar()
+            let cmd = nr2char(cmd)
+            if cmd == 'a'
+                let need_ask = 0
+            elseif cmd == 'n'
+                let go_next_file = 0
+            elseif cmd == 'y'
+                " do nothing
+            else
+                let exit_loop = 0
+            endif
+
+        endwhile
+
+        if !go_next_file
+            break
+        endif
+    endfor
+
+
+endfunction
+
+command! -nargs=* Rep call RenameSymbol(<f-args>)
 
 " END my own maps
 
@@ -369,18 +548,27 @@ autocmd BufWinEnter * normal zR
 
 
 " For project settings
+let g:proj_path = getcwd().'/'
 
 if argc() == 1 && argv(0) == '.' 
     execute "silent! source proj.vim"
 endif
 
-if exists("g:proj_path")
+
+" set path for gf, find, etc
+execute 'set path=.,'.g:proj_path.'**,/usr/include/**,,'
+"execute 'set path+=g:proj_path'
+"execute 'set path+=**'
+
+" setting for CtrlP
+execute "silent! nnoremap <C-P> :<c-u>CtrlP ".g:proj_path."<CR>"
+
+if exists("g:save_session")
 
     " Save session on quitting Vim
     autocmd VimLeave * NERDTreeClose
     autocmd VimLeave * TagbarClose
     autocmd VimLeave * execute "mksession! ".g:proj_path."session.vim"
-
 
     function! LoadSession()
         execute "silent! source session.vim" 
@@ -396,12 +584,12 @@ if exists("g:proj_path")
     " Load session on entering vim
     autocmd vimEnter * call LoadSession()
 
-    " set path for gf, find, etc
-    execute 'set path=.,/usr/include/**,'.g:proj_path.'**,,'
-
-    " setting for CtrlP
-    execute "silent! nnoremap <C-P> :<c-u>CtrlP ".g:proj_path."<CR>"
 
 endif
 
 " END For project settings
+
+
+if !isdirectory($HOME.'/.vimtmp')
+    call mkdir($HOME.'/.vimtmp', 'p')
+endif

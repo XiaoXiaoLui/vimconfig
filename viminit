@@ -3,6 +3,7 @@ set -e
 
 echo "
 let g:proj_path = \"`pwd`/\"
+let g:save_session = 1
 " > ./proj.vim
 
 echo "vim init successfuly, proj.vim created!"
