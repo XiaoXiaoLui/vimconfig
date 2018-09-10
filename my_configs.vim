@@ -8,6 +8,8 @@ set tags=tags;
 set sessionoptions=blank,curdir,buffers,folds,help,options,tabpages,winsize
 hi StatusLine ctermbg=darkgray ctermfg=black
 set diffopt=filler,vertical
+set complete=.,w,b,i
+set foldlevel=99
 
 function! GetHelp()
     let curword = expand('<cword>')
@@ -80,7 +82,7 @@ autocmd VimEnter * call InitNerdTreeOnVimEnter()
 
 
 autocmd FileType nerdtree let t:nerdtree_winnr = bufwinnr('%')
-autocmd BufWinEnter * call PreventBuffersInNERDTree()
+"autocmd BufWinEnter * call PreventBuffersInNERDTree()
 
 function! PreventBuffersInNERDTree()
   if bufname('#') =~ 'NERD_tree' && bufname('%') !~ 'NERD_tree'
@@ -177,6 +179,7 @@ let g:cpp_header_ext = ['h', 'hpp', 'hh']
 function! GetSwitchFileCommand()
     let fileexp = expand("%:e")
     let fileroot = expand("%:r")
+    let word = expand("<cword>")
     if index(g:cpp_source_ext, fileexp) >= 0
         let switchlist = g:cpp_header_ext
     elseif index(g:cpp_header_ext, fileexp) >= 0
@@ -189,6 +192,10 @@ function! GetSwitchFileCommand()
         let filename = fileroot.'.'.ext
         try
             execute 'find '.filename
+            if len(word) > 0
+                call cursor(1, 1)
+                call search(word)
+            endif
             return
         catch
         endtry
@@ -303,7 +310,7 @@ let g:grepop_default = '-nrIw'
 let g:grepop = g:grepop_default
 
 function! MyGrep(arg)
-    let grcmd = '!grep '.g:grepop.' --exclude-dir=".svn" --exclude-dir=".git" --exclude=tags '
+    let grcmd = '!grep '.g:grepop.' --exclude-dir=".svn" --exclude-dir=".git" --exclude=tags --exclude="session.vim"'
     let gitcmd = '!git grep -nIw '
     let arglist = split(a:arg)
     let pat = get(arglist, 0)
@@ -340,6 +347,9 @@ function! MyGrep(arg)
         execute '%s+'.g:proj_path.'++'
         w
     endif
+
+    " go to first line
+    execute '1'
     let @/ = '\<'.arglist[0].'\>'
 
 endfunction
@@ -364,17 +374,36 @@ function! Statistics()
         return
     endif
 
-    let filetypecmd = ''
+    "let excludedir = ['*/tmp3/*', '*/tmp2/*']
+    let excludedir = []
+
+
+
+    let filetypecmd = ' \( '
     for ext in g:stat_file_ext
         let filetypecmd = filetypecmd.'-name "*.'.ext.'" '
-        if index(g:stat_file_ext, ext) == len(g:stat_file_ext) - 1
-            break
+        if index(g:stat_file_ext, ext) != len(g:stat_file_ext) - 1
+            let filetypecmd = filetypecmd.'-o '
+        else
+            let filetypecmd = filetypecmd.' \)'
         endif
 
-        let filetypecmd = filetypecmd.'-o '
     endfor
 
-    let cmd = '!find '.g:proj_path. ' -type f '.filetypecmd.' | xargs wc -l | sort -r > ~/.vimtmp/tmp 2>&1'
+    let excludecmd = ''
+    if (len(excludedir) > 0)
+        let excludecmd = ' -and -not \( '
+    endif
+    for dir in excludedir
+        let excludecmd = excludecmd.' -path "'.g:proj_path.dir.'" '
+        if (index(excludedir, dir) != len(excludedir) - 1)
+            let excludecmd = excludecmd.' -o '
+        else
+            let excludecmd = excludecmd.' \)'
+        endif
+    endfor
+
+    let cmd = '!find '.g:proj_path. ' -type f '.filetypecmd.excludecmd.' | xargs wc -l | sort -r > ~/.vimtmp/tmp 2>&1'
     "let cmd = '!find '.g:proj_path. ' -type f '.filetypecmd.' | xargs wc -l   > ~/.vimtmp/tmp 2>&1'
     "echo cmd
     "let nouse = getchar()
@@ -432,7 +461,10 @@ function! Statistics()
     for [key, value] in items(dict)
         let headmsg = headmsg.printf("%-10s%-6d files, %-8d lines\n", key.':', value, dictlines[key])
     endfor
-    let headmsg = headmsg.printf("File lists:\n")
+    " some vim has error with this
+    "let headmsg = headmsg.printf("File lists:\n")
+    let headmsg = headmsg.printf("File lists:\n%s", "")
+    
     "echo headmsg
     0put=headmsg
 
@@ -541,7 +573,11 @@ command! -nargs=* Rep call RenameSymbol(<f-args>)
 autocmd BufEnter * hi StatusLine ctermbg=DarkCyan ctermfg=black
 autocmd BufLeave * hi StatusLine ctermbg=DarkGray ctermfg=black
 
-autocmd BufWinEnter * normal zR
+"autocmd BufWinEnter * normal zR
+
+
+" this solve the bug that nerdtree shrinks after tagbar open, this bug only exists if BufWinEnter autocmd is defined 
+"auto BufWinEnter * silent loadview
 
 " END my autocmd
 
