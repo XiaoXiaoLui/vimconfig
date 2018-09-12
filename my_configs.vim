@@ -174,6 +174,10 @@ nnoremap <Leader>pj :call ToFile("verbose jumps", "~/.vimtmp/vimjump")<CR>:e ~/.
 nnoremap <Leader>d "_d
 vnoremap <Leader>d "_d
 
+
+command! -nargs=0  ModOff bufdo set nomodifiable
+command! -nargs=0  ModOn bufdo set modifiable
+
 let g:cpp_source_ext = ['cpp', 'c', 'cc']
 let g:cpp_header_ext = ['h', 'hpp', 'hh']
 function! GetSwitchFileCommand()
