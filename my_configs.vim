@@ -37,8 +37,8 @@ nnoremap <silent> <expr> <F2> Highlighting()
 
 
 
-nnoremap <Tab> :bnext<cr>
-nnoremap <S-Tab> :bprevious<cr>
+nnoremap <C-N> :bnext<cr>
+nnoremap <C-P> :bprevious<cr>
 
 
 
@@ -180,10 +180,20 @@ function! GetSwitchFileCommand()
     let fileexp = expand("%:e")
     let fileroot = expand("%:r")
     let word = expand("<cword>")
+    let is_function = 0
     if index(g:cpp_source_ext, fileexp) >= 0
         let switchlist = g:cpp_header_ext
+        let is_header_file = 0
     elseif index(g:cpp_header_ext, fileexp) >= 0
+        let is_header_file = 1
         let switchlist = g:cpp_source_ext
+
+        let line = getline(line('.'))
+        let pat = word.'('
+        let idx = match(line, pat)
+        if idx >= 0
+            let is_function = 1
+        endif
     else
         return ""
     endif
@@ -192,9 +202,14 @@ function! GetSwitchFileCommand()
         let filename = fileroot.'.'.ext
         try
             execute 'find '.filename
-            if len(word) > 0
+            if len(word) > 0 && !is_header_file
                 call cursor(1, 1)
                 call search(word)
+            elseif is_function
+                "let pat = word.'([^;]\{0,64})\s*{'
+                let pat = word.'([^;]\{0,64})\(\s\|\n\|\r\)*{'
+                call cursor(1, 1)
+                call search(pat)
             endif
             return
         catch
@@ -597,7 +612,7 @@ execute 'set path=.,'.g:proj_path.'**,/usr/include/**,,'
 "execute 'set path+=**'
 
 " setting for CtrlP
-execute "silent! nnoremap <C-P> :<c-u>CtrlP ".g:proj_path."<CR>"
+execute "silent! nnoremap <Leader>m :<c-u>CtrlP ".g:proj_path."<CR>"
 
 if exists("g:save_session")
 

@@ -327,7 +327,7 @@ noremap <leader>s? z=
 " => Misc
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 " Remove the Windows ^M - when the encodings gets messed up
-noremap <Leader>m mmHmt:%s/<C-V><cr>//ge<cr>'tzt'm
+"noremap <Leader>m mmHmt:%s/<C-V><cr>//ge<cr>'tzt'm
 
 " Quickly open a buffer for scribble
 noremap <leader>q :e ~/buffer<cr>
@@ -336,7 +336,7 @@ noremap <leader>q :e ~/buffer<cr>
 noremap <leader>x :e ~/buffer.md<cr>
 
 " Toggle paste mode on and off
-noremap <leader>pp :setlocal paste!<cr>
+"noremap <leader>pp :setlocal paste!<cr>
 
 
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
