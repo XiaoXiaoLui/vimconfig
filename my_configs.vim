@@ -8,8 +8,13 @@ set tags=tags;
 set sessionoptions=blank,curdir,buffers,folds,help,options,tabpages,winsize
 hi StatusLine ctermbg=darkgray ctermfg=black
 set diffopt=filler,vertical
-set complete=.,w,b,i
+"set complete=.,w,b,i
+
+" this speeds up autocompletion significantly
+set complete-=i
+
 set foldlevel=99
+"set foldmethod=manual
 
 function! GetHelp()
     let curword = expand('<cword>')
@@ -603,6 +608,8 @@ function NewTempFile()
 endfunction
 
 noremap <leader>q :call NewTempFile()<CR>
+
+
 
 " END my own maps
 
