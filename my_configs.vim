@@ -136,25 +136,14 @@ let g:buftabline_indicators=1
 let g:buftabline_numbers=2
 
 
-nmap <leader>1 <Plug>BufTabLine.Go(1)
-nmap <leader>2 <Plug>BufTabLine.Go(2)
-nmap <leader>3 <Plug>BufTabLine.Go(3)
-nmap <leader>4 <Plug>BufTabLine.Go(4)
-nmap <leader>5 <Plug>BufTabLine.Go(5)
-nmap <leader>6 <Plug>BufTabLine.Go(6)
-nmap <leader>7 <Plug>BufTabLine.Go(7)
-nmap <leader>8 <Plug>BufTabLine.Go(8)
-nmap <leader>9 <Plug>BufTabLine.Go(9)
-nmap <leader>00 <Plug>BufTabLine.Go(10)
-nmap <leader>01 <Plug>BufTabLine.Go(11)
-nmap <leader>02 <Plug>BufTabLine.Go(12)
-nmap <leader>03 <Plug>BufTabLine.Go(13)
-nmap <leader>04 <Plug>BufTabLine.Go(14)
-nmap <leader>05 <Plug>BufTabLine.Go(15)
-nmap <leader>06 <Plug>BufTabLine.Go(16)
-nmap <leader>07 <Plug>BufTabLine.Go(17)
-nmap <leader>08 <Plug>BufTabLine.Go(18)
-nmap <leader>09 <Plug>BufTabLine.Go(19)
+for s:i in range(1, 99)
+    execute printf('noremap <silent> <Leader>%02d :<C-U>exe "b".get(buftabline#user_buffers(), %d, "")<CR>', s:i, s:i - 1)
+endfor
+
+
+for s:i in range(1, 9)
+    execute printf('noremap <silent> ;%d :<C-U>exe "b".get(buftabline#user_buffers(), %d, "")<CR>', s:i, s:i - 1)
+endfor
 
 " END vim-buftabline settings
 
@@ -175,8 +164,21 @@ nnoremap <Leader>d "_d
 vnoremap <Leader>d "_d
 
 
-command! -nargs=0  ModOff bufdo set nomodifiable
-command! -nargs=0  ModOn bufdo set modifiable
+function! ModifyOn()
+    let curfile = expand('%')
+    bufdo set modifiable
+    execute 'b '.curfile
+endfunction
+
+
+function! ModifyOff()
+    let curfile = expand('%')
+    bufdo set nomodifiable
+    execute 'b '.curfile
+endfunction
+
+command! -nargs=0  ModOff call ModifyOff()
+command! -nargs=0  ModOn call ModifyOn()
 
 let g:cpp_source_ext = ['cpp', 'c', 'cc']
 let g:cpp_header_ext = ['h', 'hpp', 'hh']
@@ -363,8 +365,14 @@ function! MyGrep(arg)
     edit! ~/.vimtmp/grepres
 
     if exists('g:proj_path')
+        let prestate = &modifiable
+        setlocal modifiable
         execute '%s+'.g:proj_path.'++'
         w
+        if !prestate
+            setlocal nomodifiable
+        endif
+
     endif
 
     " go to first line
@@ -430,6 +438,7 @@ function! Statistics()
     redraw!
     call buftabline#update(0)
     edit! ~/.vimtmp/tmp
+    setlocal modifiable
     execute '%s+'.g:proj_path.'++'
     w
 
@@ -474,6 +483,8 @@ function! Statistics()
     execute (findlinenr + 1).',$yank'
 
     edit! ~/.vimtmp/report
+    setlocal modifiable
+
     execute 'normal gg,dG'
     let headmsg = printf("Total files: %d\nTotal lines:%d\n", maxlinenr - findlinenr, linecnt)
 
@@ -496,6 +507,8 @@ function! Statistics()
     
     execute 'normal \<CR>'
     redraw!
+
+    setlocal nomodifiable
 
 endfunction
 
@@ -580,6 +593,16 @@ function! RenameSymbol(...)
 endfunction
 
 command! -nargs=* Rep call RenameSymbol(<f-args>)
+
+
+" open tempory buffer
+let s:buf_num = 1
+function NewTempFile()
+    execute 'edit! ~/.vimtmp/tmpbuf_'.s:buf_num
+    let s:buf_num += 1
+endfunction
+
+noremap <leader>q :call NewTempFile()<CR>
 
 " END my own maps
 

@@ -330,7 +330,7 @@ noremap <leader>s? z=
 "noremap <Leader>m mmHmt:%s/<C-V><cr>//ge<cr>'tzt'm
 
 " Quickly open a buffer for scribble
-noremap <leader>q :e ~/buffer<cr>
+"noremap <leader>q :e ~/buffer<cr>
 
 " Quickly open a markdown buffer for scribble
 noremap <leader>x :e ~/buffer.md<cr>
