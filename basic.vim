@@ -270,7 +270,7 @@ set statusline+=\ %F
 set statusline+=%m
 set statusline+=%=
 set statusline+=\ %y
-set statusline+=\ %{&fileencoding?&fileencoding:&encoding}
+set statusline+=\ %{&fileencoding}
 set statusline+=\[%{&fileformat}\]
 set statusline+=\ %p%%
 set statusline+=\ %l:%c

@@ -53,5 +53,6 @@ ctrlp
 buftabline
 tagbar
 
+lsdf
 
 ## test

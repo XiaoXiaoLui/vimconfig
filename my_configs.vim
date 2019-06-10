@@ -1,20 +1,45 @@
 set t_Co=256
+set pt=<F4>
 set number
 highlight LineNr ctermfg=142
+"highlight CursorLineNr cterm=bold ctermfg=11
+highlight CursorLineNr cterm=bold ctermfg=28
 set nowrapscan
 set whichwrap=
 set cursorline
 set tags=tags;
 set sessionoptions=blank,curdir,buffers,folds,help,options,tabpages,winsize
 hi StatusLine ctermbg=darkgray ctermfg=black
-set diffopt=filler,vertical
+hi Folded ctermbg=235
+set diffopt=filler
 "set complete=.,w,b,i
+"set formatoptions-=cro
+autocmd FileType * setlocal fo-=cro
+
+set nrformats+=alpha
+
+set hidden
+" pesistant undo history
+"set undofile
+"set undodir=$HOME/.vim/undo
+"set undolevels=100
+"set undoreload=10000
+
+
+set wildignorecase
+set fileignorecase
+
+
+set fileencodings=ucs-bom,utf-8,gbk
 
 " this speeds up autocompletion significantly
-set complete-=i
+set complete=.,w,b
 
-set foldlevel=99
-"set foldmethod=manual
+"set foldlevel=10
+"set foldlevelstart=10
+"set foldmethod=syntax
+set fdm=manual
+set fdc=0
 
 function! GetHelp()
     let curword = expand('<cword>')
@@ -38,7 +63,7 @@ function! Highlighting()
   let g:highlighting = 1
   return ":silent set hlsearch\<CR>"
 endfunction
-nnoremap <silent> <expr> <F2> Highlighting()
+nnoremap <silent> <expr> * Highlighting()
 
 
 
@@ -109,10 +134,10 @@ endfunction
 let g:ctrlp_working_path_mode = 0
 let g:ctrlp_map = ''
 "let g:ctrlp_map = '<c-p>'
-noremap <leader>j :CtrlP<cr>
 
 let g:ctrlp_max_height = 20
 let g:ctrlp_custom_ignore = 'node_modules\|^\.DS_Store\|^\.git\|^\.coffee'
+let g:ctrlp_by_filename = 1
 
 "let g:ctrlp_show_hidden = 1
 
@@ -167,6 +192,7 @@ nnoremap <Leader>pa :call ToFile("verbose autocmd", "~/.vimtmp/vimautocmd")<CR>:
 nnoremap <Leader>pj :call ToFile("verbose jumps", "~/.vimtmp/vimjump")<CR>:e ~/.vimtmp/vimjump<CR>
 nnoremap <Leader>d "_d
 vnoremap <Leader>d "_d
+noremap <Leader>c "_c
 
 
 function! ModifyOn()
@@ -189,7 +215,7 @@ let g:cpp_source_ext = ['cpp', 'c', 'cc']
 let g:cpp_header_ext = ['h', 'hpp', 'hh']
 function! GetSwitchFileCommand()
     let fileexp = expand("%:e")
-    let fileroot = expand("%:r")
+    let fileroot = expand("%:t:r")
     let word = expand("<cword>")
     let is_function = 0
     if index(g:cpp_source_ext, fileexp) >= 0
@@ -210,15 +236,15 @@ function! GetSwitchFileCommand()
     endif
 
     for ext in switchlist
-        let filename = fileroot.'.'.ext
+        let g:switch_filename = fileroot.'.'.ext
         try
-            execute 'find '.filename
+            execute 'find '.g:switch_filename
             if len(word) > 0 && !is_header_file
                 call cursor(1, 1)
                 call search(word)
             elseif is_function
                 "let pat = word.'([^;]\{0,64})\s*{'
-                let pat = word.'([^;]\{0,64})\(\s\|\n\|\r\)*{'
+                let pat = word.'(\([^;(){}]\|\n\|\r\)\{0,256})\(\s\|\n\|\r\)*\(const\)\?\(\s\|\n\|\r\)*{'
                 call cursor(1, 1)
                 call search(pat)
             endif
@@ -240,25 +266,52 @@ nnoremap <silent> <Leader>v :call DoRegisterCommand()
 
 nnoremap <silent> <Leader>y ^y$
 
-function! ViewFileInPreviewWindow()
+function! GoFilePreprocess()
     let filepath = expand("<cfile>")
+    let absolute_filepath = substitute(filepath, "\$ROOT/", g:proj_path, "")
     let line = getline('.')
-    let pat = filepath.':[0-9]\+'
-    silent! let matstr = matchstr(line, pat)
-    let idx = match(matstr, ':[0-9]\+')
-    let linenum = 1
-    if idx != -1
-        let idx = idx + 1
-        " this has syntax error in vim with low version 
-        "let linenum = matstr[idx:]
-        
-        execute 'let linenum = matstr['.idx.':]'
+    let pat = filepath.'\(\[\d\+\]\)\?:\(\d\+\)\?'
+    silent! let matlst = matchlist(line, pat)
+    if len(matlst) == 0
+        return [absolute_filepath, '']
+    endif
+    let fileidx = matlst[1]
+    let linenum = matlst[2]
+
+    if fileidx == ''
+        return [absolute_filepath, linenum]
     endif
 
-    wincmd p
+    if stridx(filepath, '/') == -1
+        let indexed_filename = filepath.fileidx
+        
+        let g:jsonfile = g:proj_path.'scope.json' 
+        if g:grep_scope_use_json && filereadable(g:jsonfile)
+            let g:cmd = 'sp.py getpath '.g:jsonfile.' '.indexed_filename
+            let filepath_find = system(g:cmd)
 
-    if idx != -1
-        execute 'edit +'.linenum.' '.g:proj_path.filepath
+            if filepath_find != ''
+                let absolute_filepath = filepath_find
+            endif
+        endif
+
+    endif
+
+
+    return [absolute_filepath, linenum]
+
+endfunction
+
+function! ViewFileInPreviewWindow()
+    let lst = GoFilePreprocess()
+    let filepath = lst[0]
+    let linenum = lst[1]
+    echo filepath
+    echo linenum
+
+    wincmd p
+    if linenum != ''
+        execute 'find +'.linenum.' '.filepath
     else
         execute 'find '.filepath
     endif
@@ -272,24 +325,15 @@ function! ViewFileInPreviewWindow()
 endfunction
 
 function! GoFileInPreviewWindow()
-    let filepath = expand("<cfile>")
-    let line = getline('.')
-    let pat = filepath.':[0-9]\+'
-    silent! let matstr = matchstr(line, pat)
-    let idx = match(matstr, ':[0-9]\+')
-    let linenum = 1
-    if idx != -1
-        let idx = idx + 1
-
-        " this has syntax error in vim with low version 
-        "let linenum = matstr[idx:]
-        
-        execute 'let linenum = matstr['.idx.':]'
-    endif
+    let lst = GoFilePreprocess()
+    let filepath = lst[0]
+    let linenum = lst[1]
+    echo filepath
+    echo linenum
 
     wincmd p
-    if idx != -1
-        execute 'edit +'.linenum.' '.g:proj_path.filepath
+    if linenum != ''
+        execute 'find +'.linenum.' '.filepath
     else
         execute 'find '.filepath
     endif
@@ -300,23 +344,14 @@ function! GoFileInPreviewWindow()
 endfunction
 
 function! GoFile()
-    let filepath = expand("<cfile>")
-    let line = getline('.')
-    let pat = filepath.':[0-9]\+'
-    silent! let matstr = matchstr(line, pat)
-    let idx = match(matstr, ':[0-9]\+')
-    let linenum = 1
-    if idx != -1
-        let idx = idx + 1
+    let lst = GoFilePreprocess()
+    let filepath = lst[0]
+    let linenum = lst[1]
+    echo filepath
+    echo linenum
 
-        " this has syntax error in vim with low version 
-        "let linenum = matstr[idx:]
-        
-        execute 'let linenum = matstr['.idx.':]'
-    endif
-
-    if idx != -1
-        execute 'edit +'.linenum.' '.g:proj_path.filepath
+    if linenum != ''
+        execute 'find +'.linenum.' '.filepath
     else
         execute 'find '.filepath
     endif
@@ -332,11 +367,19 @@ nnoremap gf :call GoFile()<CR>
 
 " grep map
 let g:grepprog = 'grep'
-let g:grepop_default = '-nrIw'
+let g:grepop_default = '-nrIwH'
 let g:grepop = g:grepop_default
+let g:grep_gen_scope = 1
+let g:grep_scope_use_json = 1
+let g:grep_shorten_path = 1
+let g:renaming = 0
+let g:res_winnr = 0
+
+"autocmd BufWinLeave grepres.cpp 
+
 
 function! MyGrep(arg)
-    let grcmd = '!grep '.g:grepop.' --exclude-dir=".svn" --exclude-dir=".git" --exclude=tags --exclude="session.vim"'
+    let grcmd = '!grep '.g:grepop.' --exclude-dir="build" --exclude-dir="bin" --exclude-dir="bin.backapp" --exclude-dir="depends" --exclude-dir=".svn" --exclude-dir=".git" --exclude=tags --exclude="session.vim" --exclude="scope.json" --exclude="*.d" --exclude="depend.json" --exclude="*.xml" --exclude="*.json"  '
     let gitcmd = '!git grep -nIw '
     let arglist = split(a:arg)
     let pat = get(arglist, 0)
@@ -352,12 +395,34 @@ function! MyGrep(arg)
             let path = "./"
         endif
     endif
+
+    let is_search_current_file = 0
+    let curpath = expand('%:p')
+    
+    if curpath == path
+       let is_search_current_file = 1
+       let g:test = curpath
+    endif
     
     if g:grepprog == 'grep'
-        let g:grepcmd = grcmd.pat.path.' >~/.vimtmp/grepres 2>&1' 
-        silent! execute g:grepcmd
+        let g:grepcmd = grcmd.pat.path.' >~/.vimtmp/grepres.cpp 2>&1' 
+        "let strLines = system('wc -l ~/.vimtmp/grepres.cpp')
+        "let lines = str2nr(strLines)
+        if g:grep_gen_scope && !g:renaming "&& !is_search_current_file
+        let g:jsonfile = g:proj_path.'scope.json' 
+            if (g:grep_scope_use_json) && filereadable(g:jsonfile) && !is_search_current_file
+                let g:grepcmd = g:grepcmd.' && sp.py genscope usejson '.$HOME.'/.vimtmp/grepres.cpp '.g:jsonfile.' '.g:grep_shorten_path
+        else
+                let g:grepcmd = g:grepcmd.' && sp.py genscope simple '.$HOME.'/.vimtmp/grepres.cpp '.g:grep_shorten_path
+            endif
+        endif
+        if g:renaming
+            let g:grepcmd = grcmd.pat.path.' >~/.vimtmp/grepres.cpp 2>&1 ' 
+            let g:renaming = 0
+        endif
+        silent! execute g:grepcmd 
     elseif g:grepprog == 'git'
-        let g:grepcmd = '!cd '.path.' && git grep -nIw '.pat.' >~/.vimtmp/grepres 2>&1'
+        let g:grepcmd = '!cd '.path.' && git grep -nIw '.pat.' >~/.vimtmp/grepres.cpp 2>&1'
         silent! execute g:grepcmd 
     else 
         echo "unknown grep program"
@@ -367,16 +432,37 @@ function! MyGrep(arg)
     redraw!
     call buftabline#update(0)
 
-    edit! ~/.vimtmp/grepres
-
-    if exists('g:proj_path')
-        let prestate = &modifiable
-        setlocal modifiable
-        execute '%s+'.g:proj_path.'++'
-        w
-        if !prestate
-            setlocal nomodifiable
+    if is_search_current_file
+        if !g:res_winnr || winwidth(g:res_winnr) == -1
+            sp
+            "execute 'normal \<C-W>j'
+            wincmd j
+            res 10
+            let g:res_winnr = winnr()
+        else
+            execute g:res_winnr.'wincmd w'
         endif
+    endif
+    edit! ~/.vimtmp/grepres.cpp
+
+
+    "if (exists('g:proj_path') && !g:grep_gen_scope)
+    if (exists('g:proj_path'))
+        setlocal modifiable
+        if g:grep_shorten_path
+            execute '%s+.*\/\(\w*\.\w\{1,5}:\d\+:\)+\1+e'
+        else
+            execute '%s+'.g:proj_path.'+$ROOT/+e'
+        endif
+      "  let prestate = &modifiable
+      "  setlocal modifiable
+      "  silent! execute '%s+.*\/\(\w*\.\w\{1,5}:\d\+:\)+\1'
+      "  w
+      "  if !prestate
+      "      setlocal nomodifiable
+      "  endif
+        w
+            setlocal nomodifiable
 
     endif
 
@@ -389,13 +475,19 @@ endfunction
 
 command! -nargs=* -complete=dir Gr call MyGrep(<q-args>)
 
-function! LookupRef()
+function! LookupRef(onlyCurFile)
     let word = expand('<cword>')
+    let path = expand('%')
 
+    if !a:onlyCurFile
     execute 'call MyGrep("'.word.'")'
+    else
+        execute 'call MyGrep("'.word.' '.path.'")'
+    endif
 endfunction
 
-nnoremap <F3> :call LookupRef()<CR>
+nnoremap <F2> :call LookupRef(0)<CR>
+nnoremap <F3> :call LookupRef(1)<CR>
 nnoremap <Leader><Leader> :b#<CR>
 
 
@@ -542,6 +634,7 @@ function! RenameSymbol(...)
         let flag = 'ge'
     endif
     let g:grepop = '-nrwIl'
+    let g:renaming = 1
     call MyGrep(org)
     let g:grepop = g:grepop_default
 
@@ -562,7 +655,8 @@ function! RenameSymbol(...)
 
     let need_ask = exists('a:3') ? 0 : 1
     for filepath in filelist
-        execute 'edit '.g:proj_path.filepath
+        w
+        execute 'edit '.filepath
         execute '%s/'.org.'/'.rep.'/'.flag
 
         if index(filelist, filepath) == len(filelist) - 1
@@ -579,6 +673,7 @@ function! RenameSymbol(...)
             let cmd = nr2char(cmd)
             if cmd == 'a'
                 let need_ask = 0
+                let flag = 'ge'
             elseif cmd == 'n'
                 let go_next_file = 0
             elseif cmd == 'y'
@@ -602,14 +697,16 @@ command! -nargs=* Rep call RenameSymbol(<f-args>)
 
 " open tempory buffer
 let s:buf_num = 1
-function NewTempFile()
+function! NewTempFile()
     execute 'edit! ~/.vimtmp/tmpbuf_'.s:buf_num
     let s:buf_num += 1
 endfunction
 
 noremap <leader>q :call NewTempFile()<CR>
 
-
+vnoremap y y']
+"nnoremap p gp
+"nnoremap gp p
 
 " END my own maps
 
@@ -638,6 +735,9 @@ let g:proj_path = getcwd().'/'
 if argc() == 1 && argv(0) == '.' 
     execute "silent! source proj.vim"
 endif
+
+
+execute 'set wildignore+='.g:proj_path.'bin/**,'.g:proj_path.'depends/**,'.g:proj_path.'build/**,'.g:proj_path.'bin.backapp/**'
 
 
 " set path for gf, find, etc
@@ -678,3 +778,66 @@ endif
 if !isdirectory($HOME.'/.vimtmp')
     call mkdir($HOME.'/.vimtmp', 'p')
 endif
+
+
+" new functions
+
+function! CopyCurFile(bOnlyFile)
+    if a:bOnlyFile
+        let word = expand('%:p:t')
+    else
+        let word = expand('%:p')
+    endif
+    let @" = word
+endfunction
+nnoremap <Leader>cf :call CopyCurFile(1)<CR>
+nnoremap <Leader>cg :call CopyCurFile(0)<CR>
+
+" swap 0 and ^
+nnoremap 0 ^
+nnoremap ^ 0
+
+" swap ' and `
+nnoremap ' `
+nnoremap ` '
+
+nmap <Leader>ss ,diwP
+
+noremap J 5j
+noremap K 5k
+noremap L 5l
+noremap H 5h
+
+noremap ,pp :put<CR>==
+noremap ,PP :put!<CR>==
+
+noremap ,A 'A'"
+noremap ,B 'B'"
+noremap ,C 'C'"
+noremap ,D 'D'"
+noremap ,E 'E'"
+noremap ,F 'F'"
+noremap ,G 'G'"
+noremap ,H 'H'"
+noremap ,I 'I'"
+noremap ,J 'J'"
+noremap ,K 'K'"
+noremap ,L 'L'"
+noremap ,M 'M'"
+noremap ,N 'N'"
+noremap ,O 'O'"
+noremap ,P 'P'"
+noremap ,Q 'Q'"
+noremap ,R 'R'"
+noremap ,S 'S'"
+noremap ,T 'T'"
+noremap ,U 'U'"
+noremap ,V 'V'"
+noremap ,W 'W'"
+noremap ,X 'X'"
+noremap ,Y 'Y'"
+noremap ,Z 'Z'"
+
+noremap <F11> :vert res 40<CR>
+command! -nargs=* Rep call RenameSymbol(<f-args>)
+command! -nargs=1 Cnt %s/<args>//gn

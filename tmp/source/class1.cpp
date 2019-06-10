@@ -1,5 +1,7 @@
 A::A()
 {
+
+    :
     printf("xxx");
 }
 
@@ -22,13 +24,14 @@ A::A()
 
 
 
-
-
-
-
-
-A::fun1()
 {
+}
+
+
+
+        ,hi,                                                si)
+{
+
     if (true)
     {
         printf("xxx");
@@ -39,3 +42,7 @@ A::fun1()
     {
     }
 }
+
+A::fun1(()
+
+int member;
